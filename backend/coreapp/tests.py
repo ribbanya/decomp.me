@@ -10,14 +10,12 @@ from django.test.testcases import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from parameterized import parameterized
 
 from coreapp import compilers, platforms
 
 from coreapp.compiler_wrapper import CompilerWrapper
 from coreapp.compilers import (
-    GCC272SN,
-    MWCC_20_72,
-    MWCC_20_79,
     Compiler,
     GCC281,
     IDO53,
@@ -523,21 +521,23 @@ nop
             len(result.elf_object), 0, "The compilation result should be non-null"
         )
 
-    def test_all_compilers(self) -> None:
+    @parameterized.expand(input=[(c,) for c in compilers.available_compilers()])
+    def test_all_compilers(self, compiler) -> None:
         """
         Ensure that we can run a simple compilation for all available compilers
         """
-        for compiler in compilers.available_compilers():
-            result = CompilerWrapper.compile_code(
-                compiler,
-                "",
-                "int func(void) { return 5; }",
-                "",
-                "func",
-            )
-            self.assertGreater(
-                len(result.elf_object), 0, "The compilation result should be non-null"
-            )
+        result = CompilerWrapper.compile_code(
+            compiler,
+            "",
+            "int func(void) { return 5; }",
+            "",
+            "func",
+        )
+        self.assertGreater(
+            len(result.elf_object),
+            0,
+            "The compilation result should be non-null",
+        )
 
 
 class DecompilationTests(BaseTestCase):
