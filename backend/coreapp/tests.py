@@ -528,12 +528,6 @@ nop
         Ensure that we can run a simple compilation for all available compilers
         """
         for compiler in compilers.available_compilers():
-            # TODO get these working
-            if compiler in [GCC272SN]:
-                continue
-            if compiler.platform in [NDS_ARM9, PS1]:
-                continue
-
             result = CompilerWrapper.compile_code(
                 compiler,
                 "",

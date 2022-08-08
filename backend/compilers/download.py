@@ -537,6 +537,9 @@ def download_wii_gc():
             if lowercase_lmgr.exists():
                 shutil.move(lowercase_lmgr, compiler_dir / "LMGR8C.dll")
 
+            with open(compiler_dir / "license.dat", "w+"):
+                pass
+
             set_x(compiler_dir / "mwcceppc.exe")
 
         shutil.rmtree(COMPILERS_DIR / group_id)
