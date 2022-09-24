@@ -1,10 +1,10 @@
 import { GetStaticPaths, GetStaticProps } from "next"
 
-import Image from "next/image"
+import Image from "next/future/image"
 import Link from "next/link"
 import { useRouter } from "next/router"
 
-import { ArrowRightIcon } from "@primer/octicons-react"
+import { ArrowRightIcon, GitPullRequestIcon } from "@primer/octicons-react"
 
 import AsyncButton from "../../components/AsyncButton"
 import Breadcrumbs from "../../components/Breadcrumbs"
@@ -13,6 +13,7 @@ import ErrorBoundary from "../../components/ErrorBoundary"
 import Footer from "../../components/Footer"
 import Nav from "../../components/Nav"
 import PageTitle from "../../components/PageTitle"
+import PrScratchBasket, { useBasket } from "../../components/PrScratchBasket"
 import { ScratchItem } from "../../components/ScratchList"
 import * as api from "../../lib/api"
 
@@ -79,6 +80,10 @@ export default function ProjectFunctionPage({ project, func, attempts }: { proje
     const userIsYou = api.useUserIsYou()
     const userAttempt = attempts.find(scratch => userIsYou(scratch.owner))
 
+    const basket = useBasket(project)
+    const canCreatePr = !!project.members.find(userIsYou)
+    const basketHasThisFunc = basket.scratches.some(s => s.project_function == func.url)
+
     return <>
         <PageTitle title={func.display_name} />
         <Nav />
@@ -98,30 +103,46 @@ export default function ProjectFunctionPage({ project, func, attempts }: { proje
                 ]} />
             </div>
         </header>
-        <main className={styles.container}>
+        <PrScratchBasket project={project} />
+        <main>
             <ErrorBoundary>
-                <section className={styles.attempts}>
-                    <h2>
-                        <span>Attempts</span>
-                        <AsyncButton onClick={start} primary={!userAttempt}>
-                            New attempt
-                            <ArrowRightIcon />
-                        </AsyncButton>
-                        {userAttempt && <Link href={userAttempt.html_url}>
-                            <a>
-                                <Button primary>
-                                    Continue your attempt
-                                    <ArrowRightIcon />
-                                </Button>
-                            </a>
-                        </Link>}
-                    </h2>
-                    {attempts.length === 0 ? <div className={styles.noAttempts}>
-                        No attempts yet {"</3"}
-                    </div> : <ul>
-                        {attempts.map(scratch => <ScratchItem key={scratch.url} scratch={scratch} />)}
-                    </ul>}
-                </section>
+                <div className={styles.container}>
+                    <section className={styles.attempts}>
+                        <h2>
+                            <span>Attempts</span>
+                            <AsyncButton onClick={start} primary={!userAttempt}>
+                                New attempt
+                                <ArrowRightIcon />
+                            </AsyncButton>
+                            {userAttempt && <Link href={userAttempt.html_url}>
+                                <a>
+                                    <Button primary>
+                                        Continue your attempt
+                                        <ArrowRightIcon />
+                                    </Button>
+                                </a>
+                            </Link>}
+                        </h2>
+                        {attempts.length === 0 ? <div className={styles.noAttempts}>
+                            No attempts yet
+                        </div> : <ul>
+                            {attempts.map(scratch => {
+                                const isInPr = !!basket.scratches.find(s => s.url == scratch.url)
+                                const isMatch = scratch.score == 0
+
+                                return <ScratchItem key={scratch.url} scratch={scratch}>
+                                    {canCreatePr && isMatch && <Button
+                                        disabled={isInPr || basketHasThisFunc}
+                                        onClick={() => basket.addScratch(scratch)}
+                                    >
+                                        <GitPullRequestIcon />
+                                        {isInPr ? "Added" : "Add to PR"}
+                                    </Button>}
+                                </ScratchItem>
+                            })}
+                        </ul>}
+                    </section>
+                </div>
             </ErrorBoundary>
         </main>
         <Footer />

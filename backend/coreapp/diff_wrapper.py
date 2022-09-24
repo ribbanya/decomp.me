@@ -71,10 +71,11 @@ class DiffWrapper:
             show_branches=True,
             show_line_numbers=False,
             show_source=False,
-            stop_jrra=False,
+            stop_at_ret=False,
             ignore_large_imms=False,
             ignore_addr_diffs=True,
             algorithm="levenshtein",
+            reg_categories={},
         )
 
     @staticmethod
@@ -209,7 +210,7 @@ class DiffWrapper:
 
         if platform == DUMMY:
             # Todo produce diff for dummy
-            return {}
+            return {"rows": ["a", "b"]}
 
         try:
             arch = asm_differ.get_arch(platform.arch or "")

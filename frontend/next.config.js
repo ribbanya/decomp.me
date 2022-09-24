@@ -18,15 +18,18 @@ try {
 process.env.NEXT_PUBLIC_COMMIT_HASH = git_hash
 
 const { withPlausibleProxy } = require("next-plausible")
-const withPWA = require("next-pwa")
-const runtimeCaching = require("next-pwa/cache")
+
+const withPWA = require("next-pwa")({
+    dest: "public",
+    disable: process.env.NODE_ENV === "development",
+})
 const removeImports = require("next-remove-imports")({
     //test: /node_modules([\s\S]*?)\.(tsx|ts|js|mjs|jsx)$/,
     //matchImports: "\\.(less|css|scss|sass|styl)$"
 })
 const nextTranslate = require("next-translate")
 
-module.exports = withPlausibleProxy({
+let app = withPlausibleProxy({
     customDomain: "https://stats.decomp.me",
 })(nextTranslate(removeImports(withPWA({
     async redirects() {
@@ -43,7 +46,7 @@ module.exports = withPlausibleProxy({
             },
             {
                 source: "/settings",
-                destination: "/settings/editor",
+                destination: "/settings/appearance",
                 permanent: false,
             },
         ]
@@ -76,11 +79,12 @@ module.exports = withPlausibleProxy({
     images: {
         domains: ["avatars.githubusercontent.com", "cdn.discordapp.com"],
     },
-    pwa: {
-        dest: "public",
-        runtimeCaching,
-        disable: process.env.NODE_ENV === "development",
-    },
     swcMinify: false,
     experimental: {},
 }))))
+
+if (process.env.ANALYZE == "true") {
+    app = require("@next/bundle-analyzer")(app)
+}
+
+module.exports = app

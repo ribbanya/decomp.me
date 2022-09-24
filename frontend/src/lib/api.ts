@@ -141,6 +141,33 @@ export async function patch(url: string, json: Json) {
     return JSON.parse(text)
 }
 
+export async function delete_(url: string, json: Json) {
+    url = getURL(url)
+
+    const body: string = JSON.stringify(json)
+
+    console.info("DELETE", url, JSON.parse(body))
+
+    const response = await fetch(url, {
+        ...commonOpts,
+        method: "DELETE",
+        body,
+        headers: {
+            "Content-Type": "application/json",
+        },
+    })
+
+    if (!response.ok) {
+        throw new ResponseError(response, await response.json())
+    }
+
+    if (response.status == 204) { // No Content
+        return null
+    } else {
+        return await response.json()
+    }
+}
+
 export interface Page<T> {
     next: string | null
     previous: string | null
@@ -153,6 +180,9 @@ export interface AnonymousUser {
     is_anonymous: true
     id: number
     is_online: boolean
+    username: string
+
+    frog_color: [number, number, number]
 }
 
 export interface User {
@@ -161,8 +191,8 @@ export interface User {
     is_anonymous: false
     id: number
     is_online: boolean
-
     username: string
+
     name: string
     avatar_url: string | null
     github_api_url: string | null
@@ -172,6 +202,7 @@ export interface User {
 export interface TerseScratch {
     url: string
     html_url: string
+    slug: string
     owner: AnonymousUser | User | null // null = unclaimed
     parent: string | null
     name: string
@@ -186,7 +217,6 @@ export interface TerseScratch {
 }
 
 export interface Scratch extends TerseScratch {
-    slug: string // avoid using, use `url` instead
     description: string
     compiler_flags: string
     diff_flags: string[]
@@ -210,7 +240,7 @@ export interface Project {
     }
     creation_time: string
     icon_url: string
-    members: string[]
+    members: User[]
     description: string
 }
 
@@ -414,7 +444,7 @@ export function useIsScratchSaved(scratch: Scratch): boolean {
         scratch.description === saved.description &&
         scratch.compiler === saved.compiler &&
         scratch.compiler_flags === saved.compiler_flags &&
-        scratch.diff_flags.join(",") === saved.diff_flags.join(",") &&
+        JSON.stringify(scratch.diff_flags) === JSON.stringify(saved.diff_flags) &&
         scratch.diff_label === saved.diff_label &&
         scratch.source_code === saved.source_code &&
         scratch.context === saved.context
@@ -458,7 +488,11 @@ export function useCompilation(scratch: Scratch | null, autoRecompile = true, au
             setCompileRequestPromise(null)
             setIsCompilationOld(false)
         }).catch(error => {
-            setCompilation({ "errors": error.json?.detail, "diff_output": null })
+            if (error instanceof ResponseError) {
+                setCompilation({ "errors": error.json?.detail, "diff_output": null })
+            } else {
+                return Promise.reject(error)
+            }
         })
 
         setCompileRequestPromise(promise)
@@ -592,4 +626,23 @@ export function usePaginated<T>(url: string): {
         loadNext,
         loadPrevious,
     }
+}
+
+export interface Stats {
+    asm_count: number
+    scratch_count: number
+    github_user_count: number
+    profile_count: number
+}
+
+export function useStats(): Stats | undefined {
+    const { data, error } = useSWR<Stats>("/stats", get, {
+        refreshInterval: 5000,
+    })
+
+    if (error) {
+        throw error
+    }
+
+    return data
 }

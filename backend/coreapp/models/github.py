@@ -125,6 +125,11 @@ class GitHubUser(models.Model):
             gh_user.user = user
             gh_user.github_id = details.id
 
+        # If the Github username has changed, update the site's username to match it
+        if gh_user.user.username != details.login:
+            gh_user.user.username = details.login
+            gh_user.user.save(update_fields=["username"])
+
         gh_user.access_token = access_token
         gh_user.save()
 
@@ -171,7 +176,7 @@ class GitHubRepo(models.Model):
         self.save()
 
         try:
-            repo_dir = self.get_dir()
+            repo_dir = self.get_dir(check_exists=False)
             remote_url = f"https://github.com/{self.owner}/{self.repo}"
 
             if repo_dir.exists():
@@ -209,20 +214,22 @@ class GitHubRepo(models.Model):
             self.is_pulling = False
             self.save()
 
-    def get_dir(self) -> Path:
-        return Path(settings.LOCAL_FILE_DIR) / "repos" / str(self.id)
+    def get_dir(self, check_exists: bool = True) -> Path:
+        repo_dir = Path(settings.LOCAL_FILE_DIR) / "repos" / str(self.id)
+        if check_exists and not repo_dir.exists():
+            raise RuntimeError("Repo directory does not exist.")
+        return repo_dir
+
+    def get_sha(self) -> str:
+        repo_dir = self.get_dir()
+        return (
+            subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_dir)
+            .decode("utf-8")
+            .strip()
+        )
 
     def details(self, access_token: str) -> Repository:
-        cache_key = f"github_repo_details:{self.id}"
-        cached = cache.get(cache_key)
-
-        if cached:
-            return cached
-
-        details = Github(access_token).get_repo(f"{self.owner}/{self.repo}")
-
-        cache.set(cache_key, details, API_CACHE_TIMEOUT)
-        return details
+        return Github(access_token).get_repo(f"{self.owner}/{self.repo}")
 
     def __str__(self) -> str:
         return f"{self.owner}/{self.repo}#{self.branch} ({self.id})"
