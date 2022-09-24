@@ -451,8 +451,9 @@ def download_ps1():
         "4.6": "2.95.2",
     }
 
+    compilers_path = COMPILERS_DIR / "psyq-compilers"
+
     for version in psyq_to_gcc.keys():
-        compilers_path = COMPILERS_DIR / "psyq-compilers"
         dest = COMPILERS_DIR / f"psyq{version}"
         if not dest.exists():
             shutil.move(compilers_path / f"psyq{version}", COMPILERS_DIR)
@@ -569,9 +570,6 @@ def download_wii_gc():
             lowercase_lmgr = compiler_dir / "lmgr8c.dll"
             if lowercase_lmgr.exists():
                 shutil.move(lowercase_lmgr, compiler_dir / "LMGR8C.dll")
-
-            with open(compiler_dir / "license.dat", "w+"):
-                pass
 
             set_x(compiler_dir / "mwcceppc.exe")
 

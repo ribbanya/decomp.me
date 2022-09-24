@@ -17,6 +17,8 @@ RUN apt-get -y update && apt-get install -y \
     bison \
     flex \
     gcc \
+    gcc-multilib \
+    g++-multilib \
     g++ \
     git \
     libprotobuf-dev \

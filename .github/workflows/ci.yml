@@ -38,6 +38,7 @@ jobs:
           sudo apt-get install docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
           sudo apt-get install \
+            gcc-multilib g++-multilib \
             binutils-aarch64-linux-gnu \
             binutils-mips-linux-gnu \
             binutils-powerpc-linux-gnu \
@@ -75,7 +76,7 @@ jobs:
           sudo mv bin/arm* /usr/bin/
       - name: Install wibo
         run: |-
-          wget https://github.com/decompals/WiBo/releases/download/0.2.4/wibo && chmod +x wibo && sudo cp wibo /usr/bin/
+          wget https://github.com/decompals/WiBo/releases/download/0.2.5/wibo && chmod +x wibo && sudo cp wibo /usr/bin/
       - name: Run backend tests
         run: |-
           mkdir -p "${WINEPREFIX}"
