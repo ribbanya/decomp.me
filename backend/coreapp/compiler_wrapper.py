@@ -46,7 +46,7 @@ if "microsoft" in uname().release.lower() and not settings.USE_SANDBOX_JAIL:
     logger.info("WSL detected & nsjail disabled: wibo not required.")
     WIBO = ""
 else:
-    WIBO = "WIBO_DEBUG=y wibo"
+    WIBO = "wibo"
 
 
 @dataclass
