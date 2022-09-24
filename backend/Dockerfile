@@ -17,8 +17,6 @@ RUN apt-get -y update && apt-get install -y \
     bison \
     flex \
     gcc \
-    gcc-multilib \
-    g++-multilib \
     g++ \
     git \
     libprotobuf-dev \
@@ -55,7 +53,7 @@ RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/inst
 
 COPY --from=nsjail /nsjail/nsjail /bin/nsjail
 
-COPY --from=ghcr.io/decompals/wibo:0.2.4 /usr/local/sbin/wibo /usr/bin/
+COPY --from=ghcr.io/decompals/wibo:0.2.6 /usr/local/sbin/wibo /usr/bin/
 
 # windows compilers need i386 wine
 ARG ENABLE_NDS_SUPPORT
