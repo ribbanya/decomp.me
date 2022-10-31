@@ -1145,7 +1145,7 @@ class UnaryOp(Condition):
     def format(self, fmt: Formatter) -> str:
         # These aren't real operators (or functions); format them as a fn call
         if self.op in PSEUDO_FUNCTION_OPS:
-            return f"{self.op}({self.expr.format(fmt)})"
+            return f"{self.op}({format_expr(self.expr, fmt)})"
 
         return f"{self.op}{self.expr.format(fmt)}"
 
@@ -1467,6 +1467,9 @@ class StructAccess(Expression):
         if (
             isinstance(var, AddressOf)
             and not var.expr.type.is_array()
+            and not (
+                isinstance(var.expr, GlobalSymbol) and var.expr.is_string_constant(fmt)
+            )
             and field_name.startswith("->")
         ):
             var = var.expr
@@ -1509,14 +1512,27 @@ class GlobalSymbol(Expression):
     def dependencies(self) -> List[Expression]:
         return []
 
-    def is_string_constant(self) -> bool:
+    def is_likely_char(self, c: int) -> bool:
+        return 0x20 <= c < 0x7F or c in (0, 7, 8, 9, 10, 13, 27)
+
+    def is_string_constant(self, fmt: Formatter) -> bool:
         ent = self.asm_data_entry
-        if not ent or not ent.is_string:
+        if not ent or len(ent.data) != 1 or not isinstance(ent.data[0], bytes):
             return False
-        return len(ent.data) == 1 and isinstance(ent.data[0], bytes)
+        if ent.is_string:
+            return True
+        if (
+            fmt.heuristic_strings
+            and ent.is_readonly
+            and len(ent.data[0]) > 1
+            and ent.data[0][0] != 0
+            and all(self.is_likely_char(x) for x in ent.data[0])
+        ):
+            return True
+        return False
 
     def format_string_constant(self, fmt: Formatter) -> str:
-        assert self.is_string_constant(), "checked by caller"
+        assert self.is_string_constant(fmt), "checked by caller"
         assert self.asm_data_entry and isinstance(self.asm_data_entry.data[0], bytes)
 
         has_trailing_null = False
@@ -1633,7 +1649,7 @@ class AddressOf(Expression):
 
     def format(self, fmt: Formatter) -> str:
         if isinstance(self.expr, GlobalSymbol):
-            if self.expr.is_string_constant():
+            if self.expr.is_string_constant(fmt):
                 return self.expr.format_string_constant(fmt)
         if self.expr.type.is_array():
             return f"{self.expr.format(fmt)}"
@@ -2366,16 +2382,35 @@ class InstrArgs:
             raise DecompFailure(f"Invalid macro argument {arg.argument}")
         return ref
 
+    def maybe_got_imm(self, index: int) -> Optional[RawSymbolRef]:
+        arg = self.raw_arg(index)
+        if not isinstance(arg, AsmAddressMode) or arg.rhs != Register("gp"):
+            return None
+        val = arg.lhs
+        if not isinstance(val, Macro) or val.macro_name not in (
+            "got",
+            "gp_rel",
+            "call16",
+        ):
+            return None
+        ref = parse_symbol_ref(val.argument)
+        if ref is None:
+            raise DecompFailure(f"Invalid macro argument {val.argument}")
+        return ref
+
     def shifted_imm(self, index: int) -> Expression:
         # TODO: Should this be part of hi_imm? Do we need to handle @ha?
         raw_imm = self.unsigned_imm(index)
         assert isinstance(raw_imm, Literal)
         return Literal(raw_imm.value << 16)
 
-    def sym_imm(self, index: int) -> AddressOf:
+    def sym_imm(self, index: int) -> Expression:
         arg = self.raw_arg(index)
-        assert isinstance(arg, AsmGlobalSymbol)
-        return self.stack_info.global_info.address_of_gsym(arg.symbol_name)
+        if isinstance(arg, AsmGlobalSymbol):
+            return self.stack_info.global_info.address_of_gsym(arg.symbol_name)
+        if isinstance(arg, AsmLiteral):
+            return self.full_imm(index)
+        raise DecompFailure(f"Bad function call operand {arg}")
 
     def memory_ref(self, index: int) -> Union[AddressMode, RawSymbolRef]:
         ret = strip_macros(self.raw_arg(index))
@@ -2439,6 +2474,16 @@ def should_wrap_transparently(expr: Expression) -> bool:
         return all(should_wrap_transparently(e) for e in expr.dependencies())
     if isinstance(expr, Cast):
         return expr.should_wrap_transparently()
+    if (
+        isinstance(expr, StructAccess)
+        and isinstance(expr.struct_var, AddressOf)
+        and isinstance(expr.struct_var.expr, GlobalSymbol)
+    ):
+        # Don't emit temps for reads of globals: they are usually compiler
+        # generated, and prevent_later_var_uses/prevent_later_reads tend to be
+        # good enough at turning wrappers non-transparent when they aren't that
+        # we are fine being a bit liberal here.
+        return True
     return False
 
 
@@ -3087,7 +3132,7 @@ class NodeState:
     stack_info: StackInfo = field(repr=False)
     regs: RegInfo = field(repr=False)
 
-    local_var_writes: Dict[LocalVar, Tuple[Register, Expression]] = field(
+    local_var_writes: Dict[LocalVar, Tuple[Register, Expression, bool]] = field(
         default_factory=dict
     )
     subroutine_args: Dict[int, Expression] = field(default_factory=dict)
@@ -3181,6 +3226,11 @@ class NodeState:
 
                 self.regs.update_meta(r, replace(data.meta, force=True))
 
+        # Do the same for values saved across function calls.
+        for loc, (reg, write, force) in self.local_var_writes.items():
+            if not force and uses_expr(write, expr_filter):
+                self.local_var_writes[loc] = (reg, write, True)
+
     def prevent_later_value_uses(self, sub_expr: Expression) -> None:
         """Prevent later uses of registers that recursively contain a given
         subexpression."""
@@ -3236,9 +3286,15 @@ class NodeState:
             if expr in self.local_var_writes:
                 # Elide register restores (only for the same register for now,
                 # to be conversative).
-                orig_reg, orig_expr = self.local_var_writes[expr]
+                orig_reg, orig_expr, force = self.local_var_writes[expr]
                 if orig_reg == reg:
                     expr = orig_expr
+                    if force:
+                        base_expr = expr
+                        if isinstance(base_expr, Cast):
+                            base_expr = base_expr.expr
+                        if isinstance(base_expr, EvalOnceExpr):
+                            base_expr.force()
 
         return self.set_reg_real(reg, expr)
 
@@ -3308,9 +3364,9 @@ class NodeState:
     def write_statement(self, stmt: Statement) -> None:
         self.to_write.append(stmt)
 
-    def store_memory(
-        self, *, source: Expression, dest: Expression, reg: Register
-    ) -> None:
+    def store_memory(self, store: StoreStmt, reg: Register) -> None:
+        source = store.source
+        dest = store.dest
         if isinstance(dest, SubroutineArg):
             # About to call a subroutine with this argument. Skip arguments for the
             # first four stack slots; they are also passed in registers.
@@ -3318,15 +3374,24 @@ class NodeState:
                 self.subroutine_args[dest.value] = source
             return
 
+        raw_value = source
+        if isinstance(raw_value, Cast) and raw_value.reinterpret:
+            raw_value = raw_value.expr
+
         if isinstance(dest, LocalVar):
             self.stack_info.add_local_var(dest)
-            raw_value = source
-            if isinstance(raw_value, Cast) and raw_value.reinterpret:
-                # When preserving values on the stack across function calls,
-                # ignore the type of the stack variable. The same stack slot
-                # might be used to preserve values of different types.
-                raw_value = raw_value.expr
-            self.local_var_writes[dest] = (reg, raw_value)
+            # When preserving values on the stack across function calls,
+            # ignore the type of the stack variable. The same stack slot
+            # might be used to preserve values of different types.
+            self.local_var_writes[dest] = (reg, raw_value, False)
+
+        if (
+            isinstance(dest, (LocalVar, PassedInArg))
+            and early_unwrap(raw_value) == dest
+        ):
+            # Elide self assignments for stack locations. This commonly happens
+            # for variables preserved across multiple function calls.
+            return
 
         # Emit a write. This includes four steps:
         # - mark the expression as used (since writes are always emitted)
@@ -3347,7 +3412,7 @@ class NodeState:
         dest.use()
         self.prevent_later_value_uses(dest)
         self.prevent_later_function_calls()
-        self.write_statement(StoreStmt(source=source, dest=dest))
+        self.write_statement(store)
 
     def _reg_probably_meant_as_function_argument(
         self, reg: Register, call_instr: InstrRef
@@ -4018,12 +4083,12 @@ class GlobalInfo:
                     # Skip externally-declared symbols that are defined in other files
                     continue
 
-                # TODO: Use original AsmFile ordering for variables
                 sort_order = (
                     not sym.type.is_function(),
                     is_global,
                     is_in_file,
                     is_const,
+                    data_entry.sort_order if data_entry is not None else ("", 0),
                     name,
                 )
                 qualifier = ""
@@ -4091,7 +4156,7 @@ class GlobalInfo:
                     comments.append("const")
 
                     # Float & string constants are almost always inlined and can be omitted
-                    if sym.is_string_constant():
+                    if sym.is_string_constant(fmt):
                         continue
                     if array_dim is None and sym.type.is_likely_float():
                         continue

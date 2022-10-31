@@ -631,7 +631,7 @@ class PpcArch(Arch):
         clobbers: List[Location] = []
         outputs: List[Location] = []
         jump_target: Optional[Union[JumpTarget, Register]] = None
-        function_target: Optional[Union[AsmGlobalSymbol, Register]] = None
+        function_target: Optional[Argument] = None
         is_conditional = False
         is_return = False
         is_store = False
@@ -711,7 +711,7 @@ class PpcArch(Arch):
             eval_fn = lambda s, a: s.set_switch_expr(a.regs[Register("ctr")])
         elif mnemonic == "bl":
             # Function call to label
-            assert len(args) == 1 and isinstance(args[0], AsmGlobalSymbol)
+            assert len(args) == 1
             inputs = list(cls.argument_regs)
             outputs = list(cls.all_return_regs)
             clobbers = list(cls.temp_regs)
@@ -768,9 +768,7 @@ class PpcArch(Arch):
             def eval_fn(s: NodeState, a: InstrArgs) -> None:
                 store = cls.instrs_store[mnemonic](a)
                 if store is not None:
-                    s.store_memory(
-                        source=store.source, dest=store.dest, reg=a.reg_ref(0)
-                    )
+                    s.store_memory(store, a.reg_ref(0))
 
         elif mnemonic in cls.instrs_store_update:
             assert isinstance(args[0], Register) and size is not None
@@ -803,9 +801,7 @@ class PpcArch(Arch):
                 )
 
                 if store is not None:
-                    s.store_memory(
-                        source=store.source, dest=store.dest, reg=a.reg_ref(0)
-                    )
+                    s.store_memory(store, a.reg_ref(0))
 
         elif mnemonic in cls.instrs_load:
             assert isinstance(args[0], Register) and size is not None

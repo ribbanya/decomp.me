@@ -378,7 +378,6 @@ class ProjectSettings:
     map_format: str
     build_dir: str
     ms_map_address_offset: int
-    ms_ignore_missing_objfile: int
     baseimg: Optional[str]
     myimg: Optional[str]
     mapfile: Optional[str]
@@ -450,7 +449,6 @@ def create_project_settings(settings: Dict[str, Any]) -> ProjectSettings:
         objdump_flags=settings.get("objdump_flags", []),
         map_format=settings.get("map_format", "gnu"),
         ms_map_address_offset=settings.get("ms_map_address_offset", 0),
-        ms_ignore_missing_objfile=settings.get("ms_ignore_missing_objfile", True),
         build_dir=settings.get("build_dir", settings.get("mw_build_dir", "build/")),
         show_line_numbers_default=settings.get("show_line_numbers_default", True),
         disassemble_all=settings.get("disassemble_all", False),
@@ -1097,7 +1095,7 @@ def search_build_objects(objname: str, project: ProjectSettings) -> Optional[str
 
 
 def search_map_file(
-    fn_name: str, project: ProjectSettings, config: Config
+    fn_name: str, project: ProjectSettings, config: Config, *, for_binary: bool
 ) -> Tuple[Optional[str], Optional[int]]:
     if not project.mapfile:
         fail(f"No map file configured; cannot find function {fn_name}.")
@@ -1126,8 +1124,10 @@ def search_map_file(
                     ram_to_rom = rom - ram
                 if line.endswith(" " + fn_name) or f" {fn_name} = 0x" in line:
                     ram = int(line.split()[0], 0)
-                    if cur_objfile is not None and ram_to_rom is not None:
-                        cands.append((cur_objfile, ram + ram_to_rom))
+                    if (for_binary and ram_to_rom is not None) or (
+                        not for_binary and cur_objfile is not None
+                    ):
+                        cands.append((cur_objfile, ram + (ram_to_rom or 0)))
                 last_line = line
         except Exception as e:
             traceback.print_exc()
@@ -1197,13 +1197,13 @@ def search_map_file(
                 - load_address
                 + project.ms_map_address_offset
             )
+            if for_binary:
+                return None, fileofs
+
             objname = names_find.group(2)
             objfile = search_build_objects(objname, project)
-
             if objfile is not None:
-                return (objfile, fileofs)
-            elif project.ms_ignore_missing_objfile:
-                return (objname, fileofs)
+                return objfile, fileofs
     else:
         fail(f"Linker map format {project.map_format} unrecognised.")
     return None, None
@@ -1383,7 +1383,7 @@ def dump_objfile(
 
     objfile = config.objfile
     if not objfile:
-        objfile, _ = search_map_file(start, project, config)
+        objfile, _ = search_map_file(start, project, config, for_binary=False)
 
     if not objfile:
         fail("Not able to find .o file for function.")
@@ -1420,7 +1420,7 @@ def dump_binary(
         run_make(project.myimg, project)
     start_addr = maybe_eval_int(start)
     if start_addr is None:
-        _, start_addr = search_map_file(start, project, config)
+        _, start_addr = search_map_file(start, project, config, for_binary=True)
         if start_addr is None:
             fail("Not able to find function in map file.")
     if end is not None:
@@ -1591,6 +1591,10 @@ class AsmProcessorPPC(AsmProcessor):
 class AsmProcessorARM32(AsmProcessor):
     def process_reloc(self, row: str, prev: str) -> Tuple[str, Optional[str]]:
         arch = self.config.arch
+        if "R_ARM_V4BX" in row:
+            # R_ARM_V4BX converts "bx <reg>" to "mov pc,<reg>" for some targets.
+            # Ignore for now.
+            return prev, None
         if "R_ARM_ABS32" in row and not prev.startswith(".word"):
             # Don't crash on R_ARM_ABS32 relocations incorrectly applied to code.
             # (We may want to do something more fancy here that actually shows the
@@ -1739,7 +1743,6 @@ class ArchSettings:
     re_reloc: Pattern[str]
     branch_instructions: Set[str]
     instructions_with_address_immediates: Set[str]
-    jump_instructions: Set[str] = field(default_factory=set)
     forbidden: Set[str] = field(default_factory=lambda: set(string.ascii_letters + "_"))
     arch_flags: List[str] = field(default_factory=list)
     branch_likely_instructions: Set[str] = field(default_factory=set)
@@ -1774,18 +1777,6 @@ MIPS_BRANCH_INSTRUCTIONS = MIPS_BRANCH_LIKELY_INSTRUCTIONS.union(
         "bc1t",
         "bc1f",
     }
-)
-
-MIPS_JUMP_ADDR_INSTRUCTIONS = {
-    "jal",
-    "j",
-}
-MIPS_JUMP_REG_INSTRUCTIONS = {
-    "jalr",
-    "jr",
-}
-MIPS_JUMP_INSTRUCTIONS = set.union(
-    MIPS_JUMP_ADDR_INSTRUCTIONS, MIPS_JUMP_REG_INSTRUCTIONS
 )
 
 ARM32_PREFIXES = {"b", "bl"}
@@ -1946,16 +1937,15 @@ MIPS_SETTINGS = ArchSettings(
     re_reg=re.compile(r"\$?\b([astv][0-9]|at|f[astv]?[0-9]+f?|kt?[01]|fp|ra|zero)\b"),
     re_sprel=re.compile(r"(?<=,)([0-9]+|0x[0-9a-f]+)\(sp\)"),
     re_large_imm=re.compile(r"-?[1-9][0-9]{2,}|-?0x[0-9a-f]{3,}"),
-    re_imm=re.compile(r"(\b|-)([0-9]+|0x[0-9a-fA-F]+)\b(?!\(sp)|%(lo|hi)\([^)]*\)"),
+    re_imm=re.compile(
+        r"(\b|-)([0-9]+|0x[0-9a-fA-F]+)\b(?!\(sp)|%(lo|hi|got|gp_rel|call16)\([^)]*\)"
+    ),
     re_reloc=re.compile(r"R_MIPS_"),
     arch_flags=["-m", "mips:4300"],
     branch_likely_instructions=MIPS_BRANCH_LIKELY_INSTRUCTIONS,
     branch_instructions=MIPS_BRANCH_INSTRUCTIONS,
-    jump_instructions=MIPS_JUMP_INSTRUCTIONS,
-    instructions_with_address_immediates=set.union(
-        MIPS_BRANCH_INSTRUCTIONS, MIPS_JUMP_ADDR_INSTRUCTIONS
-    ),
-    delay_slot_instructions=set.union(MIPS_BRANCH_INSTRUCTIONS, MIPS_JUMP_INSTRUCTIONS),
+    instructions_with_address_immediates=MIPS_BRANCH_INSTRUCTIONS.union({"j", "jal"}),
+    delay_slot_instructions=MIPS_BRANCH_INSTRUCTIONS.union({"j", "jal", "jr", "jalr"}),
     proc=AsmProcessorMIPS,
 )
 
@@ -2307,7 +2297,9 @@ def process(dump: str, config: Config) -> List[Line]:
             row = normalize_imms(row, arch)
 
         branch_target = None
-        if mnemonic in arch.branch_instructions or is_text_relative_j:
+        if (
+            mnemonic in arch.branch_instructions or is_text_relative_j
+        ) and symbol is None:
             x86_longjmp = re.search(r"\*(.*)\(", args)
             if x86_longjmp:
                 capture = x86_longjmp.group(1)
@@ -2501,8 +2493,8 @@ def diff_sameline(
     else:
         # If the last field has a parenthesis suffix, e.g. "0x38(r7)"
         # we split that part out to make it a separate field
-        # however, we don't split if it has a proceeding %hi/%lo  e.g."%lo(.data)" or "%hi(.rodata + 0x10)"
-        re_paren = re.compile(r"(?<!%hi)(?<!%lo)\(")
+        # however, we don't split if it has a proceeding % macro, e.g. "%lo(.data)"
+        re_paren = re.compile(r"(?<!%hi)(?<!%lo)(?<!%got)(?<!%call16)(?<!%gp_rel)\(")
         oldfields = oldfields[:-1] + re_paren.split(oldfields[-1])
         newfields = newfields[:-1] + re_paren.split(newfields[-1])
 
