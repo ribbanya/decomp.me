@@ -21,7 +21,7 @@ export const addCursorUp = createAddCursor("up")
 export const addCursorDown = createAddCursor("down")
 
 export const addCursorAtEachSelectionLine: Command = view => {
-    const selection: EditorSelection | null = null
+    let selection: EditorSelection | undefined
     for (const r of view.state.selection.ranges) {
         if (r.empty) {
             continue
@@ -35,7 +35,7 @@ export const addCursorAtEachSelectionLine: Command = view => {
             if (selection) {
                 selection.addRange(EditorSelection.range(anchor, anchor))
             } else {
-                EditorSelection.single(anchor)
+                selection = EditorSelection.single(anchor)
             }
 
             pos = line.to + 1

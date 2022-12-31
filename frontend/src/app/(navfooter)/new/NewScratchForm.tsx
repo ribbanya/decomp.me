@@ -60,10 +60,10 @@ export default function NewScratchForm({ serverCompilers }: {
     const [asm, setAsm] = useState("")
     const [context, setContext] = useState("")
     const [platform, setPlatform] = useState("")
-    const [compilerId, setCompiler] = useState<string>()
-    const [compilerFlags, setCompilerFlags] = useState<string>("")
+    const [compilerId, setCompiler] = useState("")
+    const [compilerFlags, setCompilerFlags] = useState("")
     const [diffFlags, setDiffFlags] = useState<string[]>([])
-    const [presetName, setPresetName] = useState<string>("")
+    const [presetName, setPresetName] = useState("")
 
     const [valueVersion, incrementValueVersion] = useReducer(x => x + 1, 0)
 
@@ -73,7 +73,7 @@ export default function NewScratchForm({ serverCompilers }: {
         const labels = getLabels(asm)
         return labels.length > 0 ? labels[0] : null
     }, [asm])
-    const [label, setLabel] = useState<string>("")
+    const [label, setLabel] = useState("")
 
     const setPreset = (preset: api.CompilerPreset) => {
         setCompiler(preset.compiler)
@@ -209,7 +209,7 @@ export default function NewScratchForm({ serverCompilers }: {
                         platform={platform}
                         presetName={presetName}
                         setPreset={setPreset}
-                        serverPresets={platform && serverCompilers.platforms[platform].presets}
+                        serverPresets={platform ? serverCompilers.platforms[platform].presets : undefined}
                     />
                 </div>
             </div>
@@ -225,7 +225,7 @@ export default function NewScratchForm({ serverCompilers }: {
                 name="label"
                 type="text"
                 value={label}
-                placeholder={defaultLabel}
+                placeholder={defaultLabel ?? ""}
                 onChange={e => setLabel((e.target as HTMLInputElement).value)}
                 className={styles.textInput}
                 autoCorrect="off"

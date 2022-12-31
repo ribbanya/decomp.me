@@ -41,7 +41,7 @@ export default function ScratchEditor({ initialScratch, parentScratch, initialCo
     // 4. Notice the scratch owner (in the About panel) has changed to your newly-logged-in user
     const ownerMayChange = !scratch.owner || scratch.owner.is_anonymous
     const cached = useSWR<api.Scratch>(ownerMayChange && scratch.url, api.get)?.data
-    if (ownerMayChange && cached?.owner && !api.isUserEq(scratch.owner, cached?.owner)) {
+    if (ownerMayChange && cached?.owner && !api.isUserEq(scratch.owner ?? undefined, cached?.owner)) {
         console.info("Scratch owner updated", cached.owner)
         setScratch(scratch => ({ ...scratch, owner: cached.owner }))
     }

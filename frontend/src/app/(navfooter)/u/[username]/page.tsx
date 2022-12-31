@@ -10,7 +10,7 @@ import { get } from "@/lib/api/request"
 import { User } from "@/lib/api/types"
 
 export default async function Page({ params }: { params: { username: string } }) {
-    let user: User
+    let user: User | null = null
     try {
         user = await get(`/users/${params.username}`)
     } catch (error) {

@@ -12,7 +12,7 @@ import LogoSwitch from "./switch.svg"
 import UnknownIcon from "./unknown.svg"
 
 /** In release-date order */
-const ICONS = {
+const ICONS: { [platform: string]: any } = {
     "irix": LogoIRIX,
     "macos9": LogoMacOS,
     "macosx": LogoMacOSX,

@@ -9,7 +9,7 @@ export default async function Head({ params }: { params: { slug: string }}) {
     let description = `Score: ${getScoreText(compilation?.diff_output?.current_score ?? -1, compilation?.diff_output?.max_score ?? -1)}`
     if (scratch.owner)
         description += `\nOwner: ${scratch.owner.username}`
-    if (parentScratch)
+    if (parentScratch?.owner)
         description += `\nForked from: @${parentScratch.owner.username}/${parentScratch.name}`
     if (scratch.description)
         description += `\n\n${scratch.description}`

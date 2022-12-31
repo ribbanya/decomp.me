@@ -13,19 +13,26 @@ const shouldIgnoreNextWarnBeforeUnload = { current: false } // ref
 export function useSize<T extends HTMLElement>(): {
     width: number | undefined
     height: number | undefined
-    ref: RefObject<T>
+    ref: RefObject<T | undefined>
     } {
     const ref = useRef<T>()
-    const [size, setSize] = useState({ width: undefined, height: undefined })
+    const [width, setWidth] = useState<number | undefined>()
+    const [height, setHeight] = useState<number | undefined>()
 
     useLayoutEffect(() => {
-        if (ref.current)
-            setSize(ref.current.getBoundingClientRect())
+        if (ref.current) {
+            const rect = ref.current.getBoundingClientRect()
+            setWidth(rect.width)
+            setHeight(rect.height)
+        }
     }, [ref])
 
-    useResizeObserver(ref, entry => setSize(entry.contentRect))
+    useResizeObserver(ref as any, entry => {
+        setWidth(entry.contentRect.width)
+        setHeight(entry.contentRect.height)
+    })
 
-    return { width: size.width, height: size.height, ref }
+    return { width, height, ref }
 }
 
 export function ignoreNextWarnBeforeUnload() {
@@ -70,7 +77,7 @@ export function useWarnBeforeUnload(enabled: boolean, message = "Are you sure yo
     }, [enabledRef, messageRef])
 }
 
-export function useThemeVariable(variable: string): string {
+export function useThemeVariable(variable: string): string | undefined {
     const [value, setValue] = useState<string>()
 
     useEffect(() => {

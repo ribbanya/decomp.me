@@ -5,7 +5,7 @@ import Link from "next/link"
 import classNames from "classnames"
 
 export type Props = {
-    href?: string
+    href?: string | null
     onClick?: () => void
     children: ReactNode
     className?: string

@@ -7,8 +7,8 @@ import { createWorkerFactory } from "@shopify/web-worker"
 import styles from "./useCompareExtension.module.scss"
 
 // State for target text to diff doc against
-const targetString = Facet.define<string, string | null>({
-    combine: values => (values.length ? values[0] : null),
+const targetString = Facet.define<string, string | undefined>({
+    combine: values => (values.length ? values[0] : undefined),
 })
 
 // Computed diff between doc and target
@@ -28,14 +28,14 @@ const marker = new (class extends GutterMarker {
 const diffGutter = gutter({
     lineMarker(view, block) { // Might be better to use markers field instead, but this works
         try {
-            const map = view.state.facet(diffLineMap)
+            const map: DiffLineMap = view.state.facet(diffLineMap)
             const line = view.state.doc.lineAt(block.from)
 
             if (view.state.doc.sliceString(line.from, line.to).trim() === "") {
                 // Don't show for empty/whitespace-only lines
             }
 
-            return map[line.number]
+            return map[line.number] ?? null
         } catch (error) {
             if (error instanceof RangeError) {
                 // Ignore
@@ -43,6 +43,8 @@ const diffGutter = gutter({
                 throw error
             }
         }
+
+        return null
     },
     lineMarkerChange(update) {
         return update.docChanged || (update.state.facet(diffLineMap) != update.startState.facet(diffLineMap))
@@ -92,7 +94,7 @@ const diffLineCalcPlugin = ViewPlugin.fromClass(class {
 })
 
 // Extension that highlights lines in the doc that differ from `compareTo`.
-export default function useCompareExtension(viewRef: RefObject<EditorView>, compareTo: string): Extension {
+export default function useCompareExtension(viewRef: RefObject<EditorView | undefined>, compareTo: string): Extension {
     const [compartment] = useState(new Compartment())
 
     // Update targetString facet when compareTo changes

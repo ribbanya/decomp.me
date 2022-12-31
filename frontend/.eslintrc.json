@@ -1,5 +1,8 @@
 {
     "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "project": ["./tsconfig.json"]
+    },
     "plugins": [
         "@typescript-eslint",
         "css-modules",
@@ -53,6 +56,16 @@
             },
             "multilineDetection": "brackets"
         }],
+        "@typescript-eslint/prefer-nullish-coalescing": "warn",
+        "@typescript-eslint/ban-types": [
+            "error",
+            {
+                "types": {
+                    "null": "Use undefined instead."
+                },
+                "extendDefaults": true
+            }
+        ],
         "no-restricted-imports": [
             "error", {
                 "paths": [

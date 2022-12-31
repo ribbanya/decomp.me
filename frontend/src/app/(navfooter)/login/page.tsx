@@ -15,7 +15,7 @@ import { requestMissingScopes } from "@/lib/oauth"
 export default function Page() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const [error, setError] = useState(null)
+    const [error, setError] = useState<Error | null>(null)
     const { mutate } = useSWRConfig()
     const code = searchParams.get("code")
     const next = searchParams.get("next")

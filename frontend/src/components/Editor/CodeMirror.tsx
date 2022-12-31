@@ -35,10 +35,10 @@ export interface Props {
     value: string
     valueVersion: number
     onChange?: (value: string) => void
-    onHoveredLineChange?: (value: number | null) => void
+    onHoveredLineChange?: (value: number | undefined) => void
     onSelectedLineChange?: (value: number) => void
     className?: string
-    viewRef?: MutableRefObject<EditorView | null>
+    viewRef?: MutableRefObject<EditorView | undefined>
     extensions: Extension // const
 }
 
@@ -78,7 +78,8 @@ export default function CodeMirror({
 
     // Defer calls to onChange to avoid excessive re-renders
     const propagateValue = useLeadingTrailingDebounceCallback(() => {
-        onChangeRef.current?.(viewRef.current.state.doc.toString())
+        if (viewRef.current)
+            onChangeRef.current?.(viewRef.current.state.doc.toString())
     }, 100)
 
     // Initial view creation
@@ -116,10 +117,10 @@ export default function CodeMirror({
             viewRefProp.current = viewRef.current
 
         return () => {
-            viewRef.current.destroy()
-            viewRef.current = null
+            viewRef.current?.destroy?.()
+            viewRef.current = undefined
             if (viewRefProp)
-                viewRefProp.current = null
+                viewRefProp.current = undefined
         }
     }, [el, propagateValue, viewRefProp])
 
@@ -149,9 +150,11 @@ export default function CodeMirror({
                 return
 
             const view = viewRef.current
-            let newLine: number | null = null
+            let newLine: number | undefined
             if (view) {
-                const line = view.state.doc.lineAt(view.posAtCoords({ x: event.clientX, y: event.clientY })).number
+                const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+                if (!pos) return
+                const line = view.state.doc.lineAt(pos).number
                 if (line) {
                     newLine = line
                 }

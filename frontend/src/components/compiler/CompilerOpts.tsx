@@ -17,9 +17,17 @@ interface IOptsContext {
     setFlag(flag: string, value: boolean): void
 }
 
-const OptsContext = createContext<IOptsContext>(undefined)
+const OptsContext = createContext<IOptsContext>({
+    checkFlag(_flag) {
+        console.warn("OptsContext not set")
+        return false
+    },
+    setFlag(_flag, _value) {
+        console.warn("OptsContext not set")
+    },
+})
 
-function Checkbox({ flag, description }) {
+function Checkbox({ flag, description }: any) {
     const { checkFlag, setFlag } = useContext(OptsContext)
 
     const isChecked = checkFlag(flag)
@@ -31,7 +39,7 @@ function Checkbox({ flag, description }) {
     </div>
 }
 
-function DiffCheckbox({ flag, description }) {
+function DiffCheckbox({ flag, description }: any) {
     const { checkFlag, setFlag } = useContext(OptsContext)
 
     const isChecked = checkFlag(flag)
@@ -42,7 +50,7 @@ function DiffCheckbox({ flag, description }) {
     </div>
 }
 
-function FlagSet({ name, children, value }) {
+function FlagSet({ name, children, value }: any) {
     const { setFlag } = useContext(OptsContext)
 
     return <div className={styles.flagSet}>
@@ -62,7 +70,7 @@ function FlagSet({ name, children, value }) {
     </div>
 }
 
-function DiffFlagSet({ name, children, value }) {
+function DiffFlagSet({ name, children, value }: any) {
     const { setFlag } = useContext(OptsContext)
 
     return <div className={styles.flagSet}>
@@ -146,7 +154,7 @@ export type CompilerOptsT = {
 }
 
 export type Props = {
-    platform?: string
+    platform: string
     value: CompilerOptsT
     onChange: (value: CompilerOptsT) => void
 

@@ -26,7 +26,7 @@ export interface Props {
 }
 
 export default function ScratchList({ url, className, item, emptyButtonLabel }: Props) {
-    const { results, isLoading, hasNext, loadNext } = api.usePaginated<api.TerseScratch>(url || "/scratch")
+    const { results, isLoading, hasNext, loadNext } = api.usePaginated<api.TerseScratch>(url ?? "/scratch")
 
     if (results.length === 0 && isLoading) {
         return <div className={classNames(styles.loading, className)}>
@@ -35,7 +35,7 @@ export default function ScratchList({ url, className, item, emptyButtonLabel }: 
         </div>
     }
 
-    const Item = item || ScratchItem
+    const Item = item ?? ScratchItem
 
     return (
         <ul className={classNames(styles.list, "rounded-md border-gray-6 text-sm", className)}>
@@ -61,7 +61,7 @@ export default function ScratchList({ url, className, item, emptyButtonLabel }: 
 }
 
 export function LoadedScratchList({ className, item, scratches }: Pick<Props, "className" | "item"> & { scratches: api.TerseScratch[] }) {
-    const Item = item || ScratchItem
+    const Item = item ?? ScratchItem
 
     return <ul className={classNames(styles.list, className)}>
         {scratches.map(scratch => <Item key={scratch.url} scratch={scratch} />)}

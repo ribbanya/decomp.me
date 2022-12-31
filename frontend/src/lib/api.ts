@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 import useSWR, { Revalidator, RevalidatorOptions, mutate } from "swr"
-import { useDebouncedCallback } from "use-debounce"
+import { DebouncedState, useDebouncedCallback } from "use-debounce"
 
 import { ResponseError, get, getCached, post, patch, delete_ } from "./api/request"
 import { AnonymousUser, User, Scratch, TerseScratch, Compilation, Page, Compiler, Platform, Project, ProjectMember } from "./api/types"
@@ -11,7 +11,7 @@ import { ignoreNextWarnBeforeUnload } from "./hooks"
 
 function onErrorRetry<C>(error: ResponseError, key: string, config: C, revalidate: Revalidator, { retryCount }: RevalidatorOptions) {
     if (error.status === 404) return
-    if (retryCount >= 10) return
+    if (typeof retryCount === "number" && retryCount >= 10) return
 
     // Retry after 5 seconds
     setTimeout(() => revalidate({ retryCount }), 5000)
@@ -37,7 +37,7 @@ export function useThisUser(): User | AnonymousUser | undefined {
 }
 
 export function isUserEq(a: User | AnonymousUser | undefined, b: User | AnonymousUser | undefined): boolean {
-    return a && b && a.id === b.id && a.is_anonymous === b.is_anonymous
+    return !!(a && b && a.id === b.id && a.is_anonymous === b.is_anonymous)
 }
 
 export function useUserIsYou(): (user: User | AnonymousUser | undefined) => boolean {
@@ -67,7 +67,7 @@ export function useSaveScratch(localScratch: Scratch): () => Promise<Scratch> {
         if (!localScratch) {
             throw new Error("Cannot save scratch before it is loaded")
         }
-        if (!userIsYou(localScratch.owner)) {
+        if (!userIsYou(localScratch.owner ?? undefined)) {
             throw new Error("Cannot save scratch which you do not own")
         }
 
@@ -136,16 +136,16 @@ export function useIsScratchSaved(scratch: Scratch): boolean {
     )
 }
 
-export function useCompilation(scratch: Scratch | null, autoRecompile = true, autoRecompileDelay, initial = null): {
-    compilation: Readonly<Compilation> | null
+export function useCompilation(scratch: Scratch, autoRecompile: boolean, autoRecompileDelay: number, initial?: Compilation): {
+    compilation: Readonly<Compilation> | undefined
     compile: () => Promise<void> // no debounce
-    debouncedCompile: () => Promise<void> // with debounce
+    debouncedCompile: DebouncedState<() => Promise<void>> // with debounce
     isCompiling: boolean
     isCompilationOld: boolean
 } {
     const savedScratch = useSavedScratch(scratch)
-    const [compileRequestPromise, setCompileRequestPromise] = useState<Promise<void>>(null)
-    const [compilation, setCompilation] = useState<Compilation>(initial)
+    const [compileRequestPromise, setCompileRequestPromise] = useState<Promise<void> | undefined>(undefined)
+    const [compilation, setCompilation] = useState<Compilation | undefined>(initial)
     const [isCompilationOld, setIsCompilationOld] = useState(false)
 
     const compile = useCallback(() => {
@@ -169,7 +169,7 @@ export function useCompilation(scratch: Scratch | null, autoRecompile = true, au
         }).then((compilation: Compilation) => {
             setCompilation(compilation)
         }).finally(() => {
-            setCompileRequestPromise(null)
+            setCompileRequestPromise(undefined)
             setIsCompilationOld(false)
         }).catch(error => {
             if (error instanceof ResponseError) {
@@ -205,7 +205,7 @@ export function useCompilation(scratch: Scratch | null, autoRecompile = true, au
                 if (scratch && scratch.compiler !== "") {
                     debouncedCompile()
                 } else {
-                    setCompilation(null)
+                    setCompilation(undefined)
                 }
             }
         }
@@ -236,7 +236,7 @@ export function usePlatforms(): Record<string, Platform> {
         onErrorRetry,
     })
 
-    return data?.platforms
+    return data?.platforms ?? {}
 }
 
 export function useCompilers(): Record<string, Compiler> {
@@ -258,21 +258,21 @@ export function usePaginated<T>(url: string, firstPage?: Page<T>): {
     loadPrevious: () => Promise<void>
 } {
     const [results, setResults] = useState<T[]>(firstPage?.results ?? [])
-    const [next, setNext] = useState<string | null>(firstPage?.next)
-    const [previous, setPrevious] = useState<string | null>(firstPage?.previous)
+    const [next, setNext] = useState<string | undefined>(firstPage?.next ?? undefined)
+    const [previous, setPrevious] = useState<string | undefined>(firstPage?.previous ?? undefined)
     const [isLoading, setIsLoading] = useState(false)
 
     useEffect(() => {
         if (!firstPage) {
             setResults([])
             setNext(url)
-            setPrevious(null)
+            setPrevious(undefined)
             setIsLoading(true)
 
             get(url).then((page: Page<T>) => {
                 setResults(page.results)
-                setNext(page.next)
-                setPrevious(page.previous)
+                setNext(page.next ?? undefined)
+                setPrevious(page.previous ?? undefined)
                 setIsLoading(false)
             })
         }
@@ -286,7 +286,7 @@ export function usePaginated<T>(url: string, firstPage?: Page<T>): {
 
         const data: Page<T> = await get(next)
         setResults(results => [...results, ...data.results])
-        setNext(data.next)
+        setNext(data.next ?? undefined)
         setIsLoading(false)
     }, [next])
 
@@ -298,7 +298,7 @@ export function usePaginated<T>(url: string, firstPage?: Page<T>): {
 
         const data: Page<T> = await get(previous)
         setResults(results => [...data.results, ...results])
-        setPrevious(data.previous)
+        setPrevious(data.previous ?? undefined)
         setIsLoading(false)
     }, [previous])
 
@@ -344,7 +344,7 @@ export function useProjectMembers(project: Project): {
     }
 
     return {
-        members: data || [],
+        members: data ?? [],
         async addMember(username: string) {
             await mutate(() => post(url, { username }))
         },

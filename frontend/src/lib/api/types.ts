@@ -1,3 +1,7 @@
+// The backend enjoys returning null, but we have that type banned in favour of
+// undefined in other files, so we need to disable the ban for this file.
+/* eslint-disable @typescript-eslint/ban-types */
+
 export interface Page<T> {
     next: string | null
     previous: string | null

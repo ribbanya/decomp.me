@@ -18,8 +18,8 @@ export type Props = {
 }
 
 export default function DecompilePanel({ scratch }: Props) {
-    const [decompiledCode, setDecompiledCode] = useState<string | null>(null)
-    const viewRef = useRef<EditorView>()
+    const [decompiledCode, setDecompiledCode] = useState<string | undefined>()
+    const viewRef = useRef<EditorView | undefined>()
     const compareExtension = useCompareExtension(viewRef, scratch.source_code)
     const [debouncedContext] = useDebounce(scratch.context, 1000, { leading: false, trailing: true })
     const [valueVersion, setValueVersion] = useState(0)

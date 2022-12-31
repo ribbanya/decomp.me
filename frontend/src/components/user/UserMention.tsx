@@ -18,13 +18,13 @@ export function getUserName(user: User | AnonymousUser | GithubUser): string {
     return user.username
 }
 
-export function getUserHtmlUrl(user: User | AnonymousUser | GithubUser): string | null {
+export function getUserHtmlUrl(user: User | AnonymousUser | GithubUser): string | undefined {
     if ("login" in user) {
         return `https://github.com/${user.login}`
     }
 
     if (isAnonUser(user)) {
-        return null
+        return undefined
     }
 
     return `/u/${user.username}`
@@ -49,7 +49,7 @@ export default function UserMention({ user }: Props) {
 
     if (url) {
         return <Link
-            href={getUserHtmlUrl(user)}
+            href={url}
             className="text-gray-11 hover:text-gray-12"
         >
             {children}

@@ -32,7 +32,7 @@ export interface HasUrl {
 export default function useEntity<T extends HasUrl>(entity: T | string): [T, Actions<T>] {
     const url = typeof entity === "string" ? entity : entity.url
     const swr = useSWR(url, get, { suspense: true })
-    const [localPatch, setLocalPatch] = useState<Partial<T> | null>(null)
+    const [localPatch, setLocalPatch] = useState<Partial<T> | undefined>(undefined)
     const isModified = localPatch !== null
     const data = isModified ? { ...swr.data, ...localPatch } : swr.data
 
@@ -48,7 +48,7 @@ export default function useEntity<T extends HasUrl>(entity: T | string): [T, Act
                 return
             }
 
-            setLocalPatch(null)
+            setLocalPatch(undefined)
             await swr.mutate(() => patch(data.url, localPatch), {
                 optimisticData: data,
                 rollbackOnError: true,
@@ -62,7 +62,7 @@ export default function useEntity<T extends HasUrl>(entity: T | string): [T, Act
             }
         },
         reset() {
-            setLocalPatch(null)
+            setLocalPatch(undefined)
         },
     }]
 }
