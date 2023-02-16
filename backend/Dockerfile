@@ -50,11 +50,11 @@ RUN apt-get -y update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | \
-  POETRY_VERSION=1.1.13 POETRY_HOME=/etc/poetry python3.9 -
+  POETRY_VERSION=1.3.1 POETRY_HOME=/etc/poetry python3.9 -
 
 COPY --from=nsjail /nsjail/nsjail /bin/nsjail
 
-COPY --from=ghcr.io/decompals/wibo:0.3.0 /usr/local/sbin/wibo /usr/bin/
+COPY --from=ghcr.io/decompals/wibo:0.4.1 /usr/local/sbin/wibo /usr/bin/
 
 # windows compilers need i386 wine
 ARG ENABLE_NDS_SUPPORT

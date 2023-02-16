@@ -22,7 +22,7 @@ See [DOCKER.md](DOCKER.md) for instructions on how to run the project in a Docke
 
 Dependencies:
 - Python >=3.9
-- Node.js
+- Node.js >=14
 - [Yarn](https://yarnpkg.com/getting-started/install)
 - [Poetry](https://python-poetry.org/docs/master/#installing-with-the-official-installer)
 
@@ -94,6 +94,10 @@ If you modify any database models (`models.py`), you'll need to run the followin
 poetry run python manage.py makemigrations
 poetry run python manage.py migrate
 ```
+
+### Frontend styling
+
+We use Tailwind CSS with Radix UI colors. Each color is on a scale from 1 to 12 (inclusive), each with [a well-defined meaning](https://www.radix-ui.com/docs/colors/palette-composition/understanding-the-scale).
 
 ## Linting
 

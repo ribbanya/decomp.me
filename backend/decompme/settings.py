@@ -4,6 +4,9 @@ from pathlib import Path
 import django_stubs_ext
 import environ
 
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+
 django_stubs_ext.monkeypatch()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -32,6 +35,12 @@ env = environ.Env(
     COMPILER_BASE_PATH=(str, BASE_DIR / "compilers"),
     COMPILATION_CACHE_SIZE=(int, 100),
     WINEPREFIX=(str, "/tmp/wine"),
+    COMPILATION_TIMEOUT_SECONDS=(int, 10),
+    ASSEMBLY_TIMEOUT_SECONDS=(int, 3),
+    OBJDUMP_TIMEOUT_SECONDS=(int, 3),
+    TIMEOUT_SCALE_FACTOR=(int, 1),
+    SENTRY_DSN=(str, ""),
+    SENTRY_SAMPLE_RATE=(float, 0.0),
 )
 
 for stem in [".env.local", ".env"]:
@@ -201,3 +210,21 @@ GITHUB_CLIENT_SECRET = env("GITHUB_CLIENT_SECRET", str)
 COMPILATION_CACHE_SIZE = env("COMPILATION_CACHE_SIZE", int)
 
 WINEPREFIX = Path(env("WINEPREFIX"))
+
+TIMEOUT_SCALE_FACTOR = env("TIMEOUT_SCALE_FACTOR", int)
+COMPILATION_TIMEOUT_SECONDS = (
+    env("COMPILATION_TIMEOUT_SECONDS", int) * TIMEOUT_SCALE_FACTOR
+)
+ASSEMBLY_TIMEOUT_SECONDS = env("ASSEMBLY_TIMEOUT_SECONDS", int) * TIMEOUT_SCALE_FACTOR
+OBJDUMP_TIMEOUT_SECONDS = env("OBJDUMP_TIMEOUT_SECONDS", int) * TIMEOUT_SCALE_FACTOR
+
+SENTRY_DSN = env("SENTRY_DSN", str)
+SENTRY_SAMPLE_RATE = env("SENTRY_SAMPLE_RATE", float)
+
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=SENTRY_SAMPLE_RATE,
+        send_default_pii=False,
+    )
