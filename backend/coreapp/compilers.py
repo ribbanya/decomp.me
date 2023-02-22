@@ -65,7 +65,6 @@ class Compiler:
     is_gcc: ClassVar[bool] = False
     is_ido: ClassVar[bool] = False
     is_mwcc: ClassVar[bool] = False
-    needs_wine = False
     language: Language = Language.C
 
     @property
