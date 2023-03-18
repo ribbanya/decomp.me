@@ -1,20 +1,15 @@
 from platform import platform
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from django.contrib.auth.models import User
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework import serializers
-from rest_framework.fields import SerializerMethodField
-from rest_framework.relations import HyperlinkedRelatedField, SlugRelatedField
 from rest_framework.reverse import reverse
-from html_json_forms.serializers import JSONFormSerializer
 
 from .middleware import Request
-from .models.github import GitHubRepo, GitHubUser
+from .models.github import GitHubUser
 
 from .models.profile import Profile
-from .models.project import Project, ProjectFunction, ProjectImportConfig, ProjectMember
-from .models.scratch import CompilerConfig, Scratch
+from .models.scratch import Scratch
 
 
 def serialize_profile(
@@ -127,10 +122,6 @@ class ScratchCreateSerializer(serializers.Serializer[None]):
     context = serializers.CharField(allow_blank=True)  # type: ignore
     diff_label = serializers.CharField(allow_blank=True, required=False)
 
-    # ProjectFunction reference
-    project = serializers.CharField(allow_blank=False, required=False)
-    rom_address = serializers.IntegerField(required=False)
-
 
 class ScratchSerializer(serializers.HyperlinkedModelSerializer):
     slug = serializers.SlugField(read_only=True)
@@ -140,8 +131,6 @@ class ScratchSerializer(serializers.HyperlinkedModelSerializer):
     owner = ProfileField(read_only=True)
     source_code = serializers.CharField(allow_blank=True, trim_whitespace=False)
     context = serializers.CharField(allow_blank=True, trim_whitespace=False)  # type: ignore
-    project = serializers.SerializerMethodField()
-    project_function = serializers.SerializerMethodField()
 
     class Meta:
         model = Scratch
@@ -155,33 +144,6 @@ class ScratchSerializer(serializers.HyperlinkedModelSerializer):
             "creation_time",
             "platform",
         ]
-
-    def get_project(self, scratch: Scratch) -> Optional[str]:
-        if (
-            hasattr(scratch, "project_function")
-            and scratch.project_function is not None
-        ):
-            return reverse(
-                "project-detail",
-                args=[scratch.project_function.project.slug],
-                request=self.context["request"],  # type: ignore
-            )
-        return None
-
-    def get_project_function(self, scratch: Scratch) -> Optional[str]:
-        if (
-            hasattr(scratch, "project_function")
-            and scratch.project_function is not None
-        ):
-            return reverse(
-                "projectfunction-detail",
-                args=[
-                    scratch.project_function.project.slug,
-                    scratch.project_function.id,
-                ],
-                request=self.context["request"],  # type: ignore
-            )
-        return None
 
 
 class TerseScratchSerializer(ScratchSerializer):
@@ -201,89 +163,5 @@ class TerseScratchSerializer(ScratchSerializer):
             "name",
             "score",
             "max_score",
-            "project",
-            "project_function",
             "parent",
         ]
-
-
-class GitHubRepoSerializer(serializers.ModelSerializer[GitHubRepo]):
-    html_url = HtmlUrlField()
-
-    class Meta:
-        model = GitHubRepo
-        exclude = ["id"]
-        read_only_fields = ["last_pulled", "is_pulling"]
-
-
-class ProjectSerializer(JSONFormSerializer, serializers.ModelSerializer[Project]):
-    slug = serializers.SlugField()
-    url = UrlField()
-    html_url = HtmlUrlField()
-    repo = GitHubRepoSerializer()
-    platform = SerializerMethodField()
-    unmatched_function_count = SerializerMethodField()
-
-    class Meta:
-        model = Project
-        exclude: List[str] = []
-        depth = 1  # repo
-
-    def create(self, validated_data: Any) -> Project:
-        repo_data = validated_data.pop("repo")
-        repo = GitHubRepo.objects.create(**repo_data)
-        project = Project.objects.create(repo=repo, **validated_data)
-        return project
-
-    def update(self, instance: Project, validated_data: Any) -> Project:
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
-
-    def get_platform(self, project: Project) -> Optional[str]:
-        import_config = ProjectImportConfig.objects.filter(project=project).first()
-        if import_config:
-            return import_config.compiler_config.platform
-        else:
-            return None
-
-    def get_unmatched_function_count(self, project: Project) -> int:
-        return ProjectFunction.objects.filter(
-            is_matched_in_repo=False, project=project
-        ).count()
-
-
-class ProjectFunctionSerializer(serializers.ModelSerializer[ProjectFunction]):
-    url = SerializerMethodField()
-    html_url = HtmlUrlField()
-    project = HyperlinkedRelatedField(view_name="project-detail", read_only=True)  # type: ignore
-    attempts_count = SerializerMethodField()
-
-    class Meta:
-        model = ProjectFunction
-        exclude = ["id", "import_config"]
-        read_only_fields = ["creation_time"]
-
-    def get_url(self, fn: ProjectFunction) -> str:
-        return reverse(
-            "projectfunction-detail",
-            args=[fn.project.slug, fn.id],
-            request=self.context["request"],
-        )
-
-    def get_attempts_count(self, fn: ProjectFunction) -> int:
-        return Scratch.objects.filter(project_function=fn).count()
-
-
-class ProjectMemberSerializer(serializers.ModelSerializer[ProjectMember]):
-    url = UrlField()
-    username = SlugRelatedField(
-        source="user",
-        slug_field="username",
-        queryset=User.objects.all(),
-    )
-
-    class Meta:
-        model = ProjectMember
-        fields = ["url", "username"]

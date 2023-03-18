@@ -6,7 +6,7 @@ import useSWR, { Revalidator, RevalidatorOptions, mutate } from "swr"
 import { useDebouncedCallback } from "use-debounce"
 
 import { ResponseError, get, post, patch, delete_ } from "./api/request"
-import { AnonymousUser, User, Scratch, TerseScratch, Compilation, Page, Compiler, Platform, Project, ProjectMember } from "./api/types"
+import { AnonymousUser, User, Scratch, TerseScratch, Compilation, Page, Compiler, Platform } from "./api/types"
 import { ignoreNextWarnBeforeUnload } from "./hooks"
 
 function onErrorRetry<C>(error: ResponseError, key: string, config: C, revalidate: Revalidator, { retryCount }: RevalidatorOptions) {
@@ -329,35 +329,4 @@ export function useStats(): Stats | undefined {
     }
 
     return data
-}
-
-export function useProjectMembers(project: Project): {
-    members: ProjectMember[]
-    addMember: (username: string) => Promise<void>
-    removeMember: (username: string) => Promise<void>
-} {
-    const url = `${project.url}/members`
-    const { data, error, mutate } = useSWR<ProjectMember[]>(url, get)
-
-    if (error) {
-        throw error
-    }
-
-    return {
-        members: data || [],
-        async addMember(username: string) {
-            await mutate(() => post(url, { username }))
-        },
-        async removeMember(username: string) {
-            await delete_(`${url}/${username}`, {})
-            await mutate()
-        },
-    }
-}
-
-export function useIsUserProjectMember(project: Project): boolean {
-    const user = useThisUser()
-    const { members } = useProjectMembers(project)
-
-    return !!members.find(member => member.username === user?.username)
 }

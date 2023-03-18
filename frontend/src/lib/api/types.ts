@@ -44,8 +44,6 @@ export interface TerseScratch {
     platform: string
     score: number // -1 = doesn't compile
     max_score: number
-    project: string
-    project_function: string
 }
 
 export interface Scratch extends TerseScratch {
@@ -56,43 +54,6 @@ export interface Scratch extends TerseScratch {
     source_code: string
     context: string
     diff_label: string
-}
-
-export interface Project {
-    slug: string
-    url: string
-    html_url: string
-    repo: {
-        html_url: string
-        owner: string
-        repo: string
-        branch: string
-        is_pulling: boolean
-        last_pulled: string | null
-    }
-    creation_time: string
-    icon?: string
-    description: string
-    platform?: string
-    unmatched_function_count: number
-}
-
-export interface ProjectFunction {
-    url: string
-    html_url: string
-    project: string
-    rom_address: number
-    creation_time: string
-    display_name: string
-    is_matched_in_repo: boolean
-    src_file: string
-    asm_file: string
-    attempts_count: number
-}
-
-export interface ProjectMember {
-    url: string
-    username: string
 }
 
 export type Compilation = {

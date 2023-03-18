@@ -37,7 +37,7 @@ function exportScratchZip(scratch: api.Scratch) {
 async function deleteScratch(scratch: api.Scratch) {
     await api.delete_(scratch.url, {})
 
-    window.location.href = scratch.project ? `/${scratch.project}` : "/"
+    window.location.href = "/"
 }
 
 function EditTimeAgo({ date }: { date: string }) {

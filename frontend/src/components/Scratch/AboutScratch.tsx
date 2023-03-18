@@ -47,9 +47,6 @@ export type Props = {
 }
 
 export default function AboutScratch({ scratch, setScratch }: Props) {
-    const { data: project } = useSWR<api.Project>(scratch.project, api.get)
-    const { data: projectFunction } = useSWR<api.ProjectFunction>(scratch.project_function, api.get)
-
     return (
         <div className={styles.container}>
             <div>
@@ -70,18 +67,6 @@ export default function AboutScratch({ scratch, setScratch }: Props) {
                     <PlatformIcon platform={scratch.platform} className={styles.platformIcon} />
                     <PlatformName platform={scratch.platform} />
                 </div>
-                {projectFunction && project && <div className={styles.horizontalField}>
-                    <p className={styles.label}>Attempt of</p>
-                    <div className={styles.projectFunctionLinks}>
-                        <Link href={projectFunction.html_url}>
-                            {projectFunction.display_name}
-                        </Link>
-                        {" "}
-                        <Link href={project.html_url}>
-                            ({project.slug})
-                        </Link>
-                    </div>
-                </div>}
                 <div className={styles.horizontalField}>
                     <p className={styles.label}>Created</p>
                     <TimeAgo date={scratch.creation_time} />

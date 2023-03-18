@@ -27,8 +27,6 @@ from ..decorators.django import condition
 from ..diff_wrapper import DiffWrapper
 from ..error import CompilationError
 from ..middleware import Request
-from ..models.github import GitHubRepo, GitHubRepoBusyException
-from ..models.project import Project, ProjectFunction
 from ..models.scratch import Asm, Scratch
 from ..platforms import Platform
 from ..serializers import (
@@ -39,11 +37,6 @@ from ..serializers import (
 
 
 logger = logging.getLogger(__name__)
-
-
-class ProjectNotMemberException(APIException):
-    status_code = status.HTTP_403_FORBIDDEN
-    default_detail = "You must be a maintainer of the project to perform this action."
 
 
 def get_db_asm(request_asm: str) -> Asm:
@@ -175,7 +168,7 @@ def update_needs_recompile(partial: Dict[str, Any]) -> bool:
     return False
 
 
-def create_scratch(data: Dict[str, Any], allow_project: bool = False) -> Scratch:
+def create_scratch(data: Dict[str, Any]) -> Scratch:
     create_ser = ScratchCreateSerializer(data=data)
     create_ser.is_valid(raise_exception=True)
     data = create_ser.validated_data
@@ -186,7 +179,6 @@ def create_scratch(data: Dict[str, Any], allow_project: bool = False) -> Scratch
         platform = platforms.from_id(given_platform)
 
     compiler = compilers.from_id(data["compiler"])
-    project = data.get("project")
     rom_address = data.get("rom_address")
 
     if platform:
@@ -231,28 +223,6 @@ def create_scratch(data: Dict[str, Any], allow_project: bool = False) -> Scratch
 
     name = data.get("name", diff_label) or "Untitled"
 
-    if allow_project and (project or rom_address):
-        assert isinstance(project, str)
-        assert isinstance(rom_address, int)
-
-        project_obj: Optional[Project] = Project.objects.filter(slug=project).first()
-        if not project_obj:
-            raise serializers.ValidationError("Unknown project")
-
-        repo: GitHubRepo = project_obj.repo
-        if repo.is_pulling:
-            raise GitHubRepoBusyException()
-
-        project_function = ProjectFunction.objects.filter(
-            project=project_obj, rom_address=rom_address
-        ).first()
-        if not project_function:
-            raise serializers.ValidationError(
-                "Function with given rom address does not exist in project"
-            )
-    else:
-        project_function = None
-
     ser = ScratchSerializer(
         data={
             "name": name,
@@ -269,7 +239,6 @@ def create_scratch(data: Dict[str, Any], allow_project: bool = False) -> Scratch
     scratch = ser.save(
         target_assembly=assembly,
         platform=platform.id,
-        project_function=project_function,
     )
 
     compile_scratch_update_score(scratch)
@@ -440,7 +409,6 @@ class ScratchViewSet(
             parent=parent,
             target_assembly=parent.target_assembly,
             platform=parent.platform,
-            project_function=parent.project_function,
         )
 
         compile_scratch_update_score(new_scratch)
