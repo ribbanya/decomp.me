@@ -44,10 +44,10 @@ class DecompilationTests(BaseTestCase):
         # Provide context and see that the decompilation changes
         response = self.client.post(
             reverse("scratch-decompile", kwargs={"pk": scratch.slug}),
-            data={"context": "s32 return_2(void);"},
+            data={"context": "? return_2(void);"},
         )
         self.assertEqual(
-            response.json()["decompilation"], "s32 return_2(void) {\n    return 2;\n}\n"
+            response.json()["decompilation"], "? return_2(void) {\n    return 2;\n}\n"
         )
 
 
